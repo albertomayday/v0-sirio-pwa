@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sirio TPV · Configurador</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<style>
+/* ══════════════════════════════════════════════════════
+   SIRIO · Configurador
+   Escribe en localStorage → leído por index.html (TPV)
+══════════════════════════════════════════════════════ */
+:root {
+  --bg:#f4f1f0; --surface:#faf9f8; --surface2:#ece8e7; --border:#ddd8d6;
+  --ink:#1c1917; --ink2:#6b6460; --ink3:#a39e9b;
+  --burdeos:#7c1d2e; --burdeos2:#9b2335;
+  --burdeos-bg:#f5e8eb; --burdeos-light:#fdf2f4;
+  --green:#166534; --green-bg:#dcfce7;
+  --red:#991b1b; --red-bg:#fee2e2;
+  --amber:#92400e; --amber-bg:#fef3c7;
+  --blue:#1e40af; --blue-bg:#dbeafe;
+  --mono:'DM Mono',monospace; --sans:'Outfit',sans-serif;
+  --r:10px; --shadow:0 1px 3px rgba(0,0,0,.07); --shadow-md:0 4px 16px rgba(0,0,0,.09);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+  height:100vh;overflow:hidden;display:grid;grid-template-rows:52px 44px 1fr;}
+
+/* TOPBAR */
+.topbar{background:var(--burdeos);display:flex;align-items:center;padding:0 20px;gap:12px;}
+.brand{font-family:var(--mono);font-size:14px;font-weight:500;color:#fff;
+  letter-spacing:.1em;display:flex;align-items:center;gap:8px;}
+.brand-dot{width:7px;height:7px;border-radius:50%;background:#fbbf24;
+  box-shadow:0 0 6px #fbbf24;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-sep{flex:1;}
+.topbar-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  border-radius:6px;color:rgba(255,255,255,.75);font-family:var(--mono);font-size:11px;
+  padding:5px 12px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.topbar-btn:hover{background:rgba(255,255,255,.16);color:#fff;}
+.topbar-btn.save{border-color:rgba(74,222,128,.5);background:rgba(74,222,128,.12);color:#4ade80;font-weight:700;}
+.topbar-btn.tpv{border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.12);color:#fbbf24;}
+.saved-badge{font-family:var(--mono);font-size:10px;color:rgba(74,222,128,.7);
+  opacity:0;transition:opacity .3s;}
+.saved-badge.show{opacity:1;}
+.clock{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.45);min-width:60px;text-align:right;}
+
+/* TABS */
+.tabs{background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-end;padding:0 16px;gap:2px;overflow-x:auto;}
+.tabs::-webkit-scrollbar{height:0;}
+.tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--ink3);
+  cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.tab:hover{color:var(--burdeos);}
+.tab.active{color:var(--burdeos);border-bottom-color:var(--burdeos);}
+.tab svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;}
+
+/* PANELS */
+.panel{display:none;height:100%;overflow:hidden;}
+.panel.active{display:flex;}
+
+/* ══════════════════════════════════
+   PANEL CONFIG
+══════════════════════════════════ */
+#panel-config.active{display:grid;grid-template-columns:300px 1fr;overflow:hidden;}
+.cfg-sidebar{background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;}
+.cfg-tabs{display:flex;border-bottom:1px solid var(--border);overflow-x:auto;}
+.cfg-tabs::-webkit-scrollbar{height:0;}
+.cfg-tab{flex:1;padding:9px 4px;font-size:10px;font-weight:700;font-family:var(--mono);
+  text-align:center;cursor:pointer;color:var(--ink3);border-bottom:2px solid transparent;
+  transition:all .15s;white-space:nowrap;min-width:60px;}
+.cfg-tab:hover{color:var(--burdeos);}
+.cfg-tab.active{color:var(--burdeos);border-bottom-color:var(--burdeos);}
+.cfg-section{display:none;flex-direction:column;gap:0;overflow-y:auto;flex:1;padding:14px;}
+.cfg-section.active{display:flex;}
+.cfg-section::-webkit-scrollbar{width:3px;}
+.cfg-section::-webkit-scrollbar-thumb{background:var(--border);}
+
+.cfg-block{margin-bottom:18px;}
+.cfg-block-title{font-size:10px;font-weight:700;font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:8px;}
+.cfg-field{margin-bottom:9px;}
+.cfg-label{font-size:11px;font-weight:600;color:var(--ink2);margin-bottom:4px;display:block;}
+.cfg-input{width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:12px;
+  color:var(--ink);outline:none;transition:border-color .15s;}
+.cfg-input:focus{border-color:var(--burdeos);}
+.cfg-input-row{display:grid;grid-template-columns:1fr 80px;gap:6px;}
+.cfg-select{width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:12px;
+  color:var(--ink);outline:none;}
+.cfg-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;}
+.cfg-toggle-label{font-size:12px;color:var(--ink);}
+.cfg-toggle{position:relative;width:36px;height:20px;}
+.cfg-toggle input{opacity:0;width:0;height:0;}
+.cfg-toggle-slider{position:absolute;inset:0;background:var(--border);
+  border-radius:10px;cursor:pointer;transition:.2s;}
+.cfg-toggle-slider:before{content:'';position:absolute;width:14px;height:14px;
+  left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+.cfg-toggle input:checked+.cfg-toggle-slider{background:var(--burdeos);}
+.cfg-toggle input:checked+.cfg-toggle-slider:before{transform:translateX(16px);}
+
+.cfg-list{display:flex;flex-direction:column;gap:5px;}
+.cfg-item{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:8px 10px;display:flex;align-items:center;gap:8px;font-size:12px;}
+.cfg-item-name{flex:1;font-weight:600;color:var(--ink);}
+.cfg-item-meta{font-family:var(--mono);font-size:11px;color:var(--ink3);}
+.cfg-item-cat{font-size:10px;padding:2px 6px;border-radius:3px;
+  background:var(--burdeos-bg);color:var(--burdeos);font-family:var(--mono);font-weight:700;}
+.cfg-del-btn{background:none;border:none;color:var(--ink3);cursor:pointer;
+  font-size:14px;padding:2px 5px;border-radius:4px;transition:all .1s;line-height:1;}
+.cfg-del-btn:hover{background:var(--red-bg);color:var(--red);}
+.cfg-add-btn{width:100%;padding:7px;border-radius:7px;border:1px dashed var(--border);
+  background:transparent;color:var(--ink3);font-size:12px;font-family:var(--mono);
+  cursor:pointer;transition:all .15s;margin-top:6px;}
+.cfg-add-btn:hover{border-color:var(--burdeos);color:var(--burdeos);background:var(--burdeos-light);}
+.cfg-add-form{background:var(--burdeos-light);border:1px solid var(--burdeos-bg);
+  border-radius:8px;padding:10px;margin-top:6px;display:flex;flex-direction:column;gap:7px;}
+.cfg-add-form.hidden{display:none;}
+.cfg-form-row{display:grid;gap:6px;}
+.cfg-form-row.two{grid-template-columns:1fr 1fr;}
+.cfg-form-row.three{grid-template-columns:1fr 70px 100px;}
+.cfg-save-btn{background:var(--burdeos);color:#fff;border:none;border-radius:6px;
+  padding:7px 14px;font-size:11px;font-weight:700;font-family:var(--mono);
+  cursor:pointer;transition:opacity .15s;}
+.cfg-save-btn:hover{opacity:.85;}
+.cfg-cancel-btn{background:var(--surface);color:var(--ink2);border:1px solid var(--border);
+  border-radius:6px;padding:7px 14px;font-size:11px;font-weight:700;font-family:var(--mono);cursor:pointer;}
+
+/* ══════════════════════════════════
+   PANEL MERMAID (live diagram)
+══════════════════════════════════ */
+.cfg-main{display:grid;grid-template-rows:auto 1fr;overflow:hidden;}
+.cfg-main-hdr{padding:12px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;background:var(--surface);}
+.cfg-main-title{font-size:14px;font-weight:700;color:var(--ink);}
+.cfg-main-sub{font-size:11px;color:var(--ink3);font-family:var(--mono);margin-top:2px;}
+.merm-workspace{display:grid;grid-template-columns:1fr 1fr;overflow:hidden;height:100%;}
+.merm-editor-col{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.merm-editor-hdr{padding:9px 12px;background:var(--ink);display:flex;align-items:center;justify-content:space-between;}
+.merm-editor-lbl{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px;}
+.merm-editor-lbl span{color:#fbbf24;}
+.merm-editor-actions{display:flex;gap:5px;}
+.med-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  border-radius:5px;color:rgba(255,255,255,.6);font-family:var(--mono);font-size:10px;
+  padding:4px 10px;cursor:pointer;transition:all .15s;}
+.med-btn:hover{background:rgba(255,255,255,.15);color:#fff;}
+.med-btn.prim{background:rgba(124,29,46,.4);border-color:rgba(124,29,46,.6);color:#fca5a5;}
+.med-btn.prim:hover{background:rgba(124,29,46,.6);color:#fff;}
+#mermaid-editor{flex:1;background:#0d1117;color:#c9d1d9;font-family:var(--mono);
+  font-size:12px;line-height:1.6;border:none;outline:none;resize:none;
+  padding:14px;overflow-y:auto;}
+#mermaid-editor::-webkit-scrollbar{width:4px;}
+#mermaid-editor::-webkit-scrollbar-thumb{background:#30363d;}
+.merm-preview-col{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+.merm-preview-hdr{padding:9px 12px;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;}
+.merm-preview-lbl{font-family:var(--mono);font-size:11px;color:var(--ink3);}
+.merm-status{font-size:10px;font-family:var(--mono);padding:2px 8px;border-radius:4px;}
+.merm-status.ok{background:var(--green-bg);color:var(--green);}
+.merm-status.err{background:var(--red-bg);color:var(--red);}
+#mermaid-preview{flex:1;overflow:auto;padding:18px;display:flex;align-items:flex-start;justify-content:center;}
+#mermaid-preview::-webkit-scrollbar{width:5px;height:5px;}
+#mermaid-preview::-webkit-scrollbar-thumb{background:var(--border);}
+.merm-error{color:var(--red);font-family:var(--mono);font-size:11px;padding:14px;
+  background:var(--red-bg);border-radius:8px;margin:14px;white-space:pre-wrap;}
+
+/* STATUS BAR */
+.status-bar{position:fixed;bottom:0;left:0;right:0;background:var(--burdeos);
+  padding:5px 16px;display:flex;align-items:center;gap:14px;
+  font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.6);z-index:50;}
+.sb-ok{color:#4ade80;font-weight:700;}
+.sb-sep{opacity:.3;}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand"><div class="brand-dot"></div>SIRIO · CONFIGURADOR</div>
+  <div class="topbar-sep"></div>
+  <span class="saved-badge" id="saved-badge">✓ Guardado</span>
+  <button class="topbar-btn save" onclick="saveAll()">💾 Guardar y aplicar</button>
+  <button class="topbar-btn tpv" onclick="window.location='index.html'">→ Abrir TPV</button>
+  <div class="clock" id="clock"></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" id="tab-config" onclick="goTab('config')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/>
+    <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/>
+    <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
+    <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+    General
+  </div>
+  <div class="tab" id="tab-productos" onclick="goTab('productos')">
+    <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+    <line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+    Productos
+  </div>
+  <div class="tab" id="tab-mesas" onclick="goTab('mesas')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="10" rx="2"/>
+    <line x1="7" y1="18" x2="7" y2="21"/><line x1="17" y1="18" x2="17" y2="21"/></svg>
+    Mesas
+  </div>
+  <div class="tab" id="tab-usuarios" onclick="goTab('usuarios')">
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/>
+    <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+    Usuarios
+  </div>
+  <div class="tab" id="tab-diagrama" onclick="goTab('diagrama')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="5" rx="1"/>
+    <rect x="16" y="3" width="5" height="5" rx="1"/>
+    <rect x="9.5" y="16" width="5" height="5" rx="1"/>
+    <line x1="5.5" y1="8" x2="5.5" y2="12"/><line x1="18.5" y1="8" x2="18.5" y2="12"/>
+    <line x1="5.5" y1="12" x2="18.5" y2="12"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
+    Diagrama
+  </div>
+</div>
+
+<!-- PANEL: CONFIG GENERAL -->
+<div class="panel active" id="panel-config">
+  <div class="cfg-sidebar">
+    <!-- Sidebar content reused inside diagrama too -->
+    <div style="overflow-y:auto;padding:16px;flex:1;">
+
+      <div class="cfg-block">
+        <div class="cfg-block-title">Negocio</div>
+        <div class="cfg-field">
+          <label class="cfg-label">Nombre del establecimiento</label>
+          <input class="cfg-input" id="cfg-biz-name" value="SIRIO · TPV" oninput="liveApply()">
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">Tipo de negocio</label>
+          <select class="cfg-select" id="cfg-biz-type" onchange="liveApply()">
+            <option value="restaurante">Restaurante / Bar</option>
+            <option value="tienda">Tienda / Comercio</option>
+            <option value="cafeteria">Cafetería / Take away</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cfg-block">
+        <div class="cfg-block-title">Fiscal</div>
+        <div class="cfg-field">
+          <label class="cfg-label">IVA (%)</label>
+          <input class="cfg-input" id="cfg-iva" type="number" min="0" max="100" value="21" oninput="liveApply()">
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">Moneda</label>
+          <select class="cfg-select" id="cfg-currency" onchange="liveApply()">
+            <option value="€">Euro (€)</option>
+            <option value="$">Dólar ($)</option>
+            <option value="£">Libra (£)</option>
+            <option value="CHF">Franco suizo (CHF)</option>
+          </select>
+        </div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Precios con IVA incluido</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-iva-incl" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="cfg-block">
+        <div class="cfg-block-title">Flujo de venta</div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Usar mesas</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-use-mesas" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Control de inventario</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-use-inv" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Modo offline / cola AEAT</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-offline" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Alerta stock bajo</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-stock-alert" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="cfg-block">
+        <div class="cfg-block-title">Métodos de pago</div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Efectivo</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-pay-efectivo" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Tarjeta</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-pay-tarjeta" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="cfg-toggle-row">
+          <span class="cfg-toggle-label">Bizum</span>
+          <label class="cfg-toggle">
+            <input type="checkbox" id="cfg-pay-bizum" checked onchange="liveApply()">
+            <span class="cfg-toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Main: Mermaid live diagram -->
+  <div class="cfg-main" id="cfg-main-area">
+    <div class="cfg-main-hdr">
+      <div>
+        <div class="cfg-main-title">Diagrama de flujo · Lógica de negocio</div>
+        <div class="cfg-main-sub">Se actualiza automáticamente con los cambios de configuración</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="merm-status ok" id="mermaid-status-badge">✓ Válido</span>
+        <button class="med-btn prim" onclick="exportMermaid()">↓ Exportar .mmd</button>
+        <button class="med-btn" onclick="resetMermaid()">↺ Regenerar</button>
+      </div>
+    </div>
+    <div class="merm-workspace">
+      <div class="merm-editor-col">
+        <div class="merm-editor-hdr">
+          <div class="merm-editor-lbl">mermaid · <span>flowchart TD</span></div>
+          <div class="merm-editor-actions">
+            <button class="med-btn" onclick="insertSnippet('decision')">+ Decisión</button>
+            <button class="med-btn" onclick="insertSnippet('process')">+ Proceso</button>
+            <button class="med-btn" onclick="insertSnippet('db')">+ BD</button>
+          </div>
+        </div>
+        <textarea id="mermaid-editor" spellcheck="false" oninput="debouncedRender()"></textarea>
+      </div>
+      <div class="merm-preview-col">
+        <div class="merm-preview-hdr">
+          <div class="merm-preview-lbl">Vista previa en tiempo real</div>
+          <button class="med-btn" onclick="copyDiagram()"
+            style="background:var(--burdeos-bg);border-color:var(--burdeos-bg);color:var(--burdeos)">
+            Copiar código
+          </button>
+        </div>
+        <div id="mermaid-preview"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: PRODUCTOS -->
+<div class="panel" id="panel-productos">
+  <div style="display:grid;grid-template-columns:1fr 1fr;height:100%;overflow:hidden;">
+
+    <!-- Categorías -->
+    <div style="border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface);
+        display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:13px;font-weight:700;">Categorías</div>
+        <button class="cfg-save-btn" style="font-size:10px;padding:5px 10px" onclick="showCatForm()">+ Nueva</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:14px;">
+        <div class="cfg-list" id="cfg-cats-list"></div>
+        <div class="cfg-add-form hidden" id="cfg-cat-form">
+          <div class="cfg-form-row">
+            <input class="cfg-input" id="cfg-cat-new-name" placeholder="Nombre categoría">
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="cfg-save-btn" onclick="saveCat()">Añadir</button>
+            <button class="cfg-cancel-btn" onclick="hideCatForm()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Productos -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface);
+        display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <span style="font-size:13px;font-weight:700;">Productos</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--ink3);margin-left:8px"
+            id="cfg-prod-count"></span>
+        </div>
+        <button class="cfg-save-btn" style="font-size:10px;padding:5px 10px" onclick="showProdForm()">+ Nuevo</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:14px;">
+        <div class="cfg-list" id="cfg-prods-list"></div>
+        <div class="cfg-add-form hidden" id="cfg-prod-form" style="margin-top:0">
+          <div class="cfg-form-row">
+            <input class="cfg-input" id="cfg-prod-name" placeholder="Nombre producto">
+          </div>
+          <div class="cfg-form-row two">
+            <input class="cfg-input" id="cfg-prod-price" type="number" step="0.01" placeholder="Precio">
+            <select class="cfg-select" id="cfg-prod-cat"></select>
+          </div>
+          <div class="cfg-form-row">
+            <input class="cfg-input" id="cfg-prod-badge" placeholder="Badge (ej. OFERTA, TOP...)">
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="cfg-save-btn" onclick="saveProd()">Añadir</button>
+            <button class="cfg-cancel-btn" onclick="hideProdForm()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: MESAS -->
+<div class="panel" id="panel-mesas">
+  <div style="padding:24px;max-width:480px;">
+    <div style="font-size:18px;font-weight:700;margin-bottom:18px;">Configuración de mesas</div>
+    <div class="cfg-block">
+      <div class="cfg-block-title">Número de mesas</div>
+      <div class="cfg-field">
+        <label class="cfg-label">Cantidad total de mesas</label>
+        <div class="cfg-input-row">
+          <input class="cfg-input" id="cfg-num-mesas" type="number" min="1" max="50" value="10">
+          <button class="cfg-save-btn" onclick="applyMesasConfig()">Aplicar</button>
+        </div>
+        <div style="font-size:11px;color:var(--ink3);font-family:var(--mono);margin-top:5px;">
+          Máximo 50 mesas · Las mesas con comanda activa se conservan
+        </div>
+      </div>
+    </div>
+    <div class="cfg-block">
+      <div class="cfg-block-title">Nomenclatura</div>
+      <div class="cfg-field">
+        <label class="cfg-label">Prefijo de mesa</label>
+        <input class="cfg-input" id="cfg-mesa-prefix" value="Mesa " oninput="liveApply()" placeholder="Mesa ">
+      </div>
+    </div>
+    <div class="cfg-block">
+      <div class="cfg-block-title">Vista previa</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;" id="mesas-preview"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: USUARIOS -->
+<div class="panel" id="panel-usuarios">
+  <div style="padding:24px;max-width:540px;">
+    <div style="font-size:18px;font-weight:700;margin-bottom:18px;">Usuarios del sistema</div>
+    <div class="cfg-block">
+      <div class="cfg-list" id="cfg-users-list"></div>
+      <div class="cfg-add-form hidden" id="cfg-user-form">
+        <div class="cfg-form-row">
+          <input class="cfg-input" id="cfg-user-name" placeholder="Nombre completo">
+        </div>
+        <div class="cfg-form-row">
+          <input class="cfg-input" id="cfg-user-role" placeholder="Rol (ej. Cajera / Camarera)">
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="cfg-save-btn" onclick="saveUser()">Añadir</button>
+          <button class="cfg-cancel-btn" onclick="hideUserForm()">Cancelar</button>
+        </div>
+      </div>
+      <button class="cfg-add-btn" onclick="showUserForm()">+ Nuevo usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: DIAGRAMA (full screen) -->
+<div class="panel" id="panel-diagrama">
+  <div style="display:grid;grid-template-rows:auto 1fr;width:100%;overflow:hidden;">
+    <div style="padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface);
+      display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:14px;font-weight:700;">Diagrama de flujo · Pantalla completa</div>
+        <div style="font-size:11px;color:var(--ink3);font-family:var(--mono);margin-top:2px;">
+          Editable manualmente · Se regenera al cambiar la config
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="merm-status ok" id="mermaid-status-badge2">✓ Válido</span>
+        <button class="med-btn prim" onclick="exportMermaid()">↓ Exportar .mmd</button>
+        <button class="med-btn" onclick="resetMermaid()">↺ Regenerar</button>
+      </div>
+    </div>
+    <div class="merm-workspace">
+      <div class="merm-editor-col">
+        <div class="merm-editor-hdr">
+          <div class="merm-editor-lbl">mermaid · <span>flowchart TD</span></div>
+          <div class="merm-editor-actions">
+            <button class="med-btn" onclick="insertSnippet('decision')">+ Decisión</button>
+            <button class="med-btn" onclick="insertSnippet('process')">+ Proceso</button>
+            <button class="med-btn" onclick="insertSnippet('db')">+ BD</button>
+          </div>
+        </div>
+        <textarea id="mermaid-editor2" spellcheck="false" oninput="syncEditors(this,'mermaid-editor2');debouncedRender()"></textarea>
+      </div>
+      <div class="merm-preview-col">
+        <div class="merm-preview-hdr">
+          <div class="merm-preview-lbl">Vista previa</div>
+          <button class="med-btn" onclick="copyDiagram()"
+            style="background:var(--burdeos-bg);border-color:var(--burdeos-bg);color:var(--burdeos)">
+            Copiar código
+          </button>
+        </div>
+        <div id="mermaid-preview2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <span class="sb-ok">⬡ SIRIO CONFIG</span>
+  <span class="sb-sep">|</span>
+  <span id="sb-name">SIRIO · TPV</span>
+  <span class="sb-sep">|</span>
+  <span id="sb-info">IVA 21% · 10 mesas · 18 productos</span>
+  <span style="flex:1"></span>
+  <span id="sb-saved" style="color:rgba(255,255,255,.4)">No guardado</span>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+mermaid.initialize({
+  startOnLoad:false, theme:'default',
+  flowchart:{curve:'basis',padding:20}, securityLevel:'loose'
+});
+
+// ═══════════════════════════════════════════════════
+//  ESTADO
+// ═══════════════════════════════════════════════════
+function loadKey(key, def){
+  try{ const s=localStorage.getItem('sirio_'+key); if(s) return JSON.parse(s); }
+  catch{}; return def;
+}
+
+const CFG = loadKey('cfg', {
+  bizName:'SIRIO · TPV', bizType:'restaurante',
+  iva:21, currency:'€', ivaIncluido:true,
+  useMesas:true, useInventario:true, offlineMode:true, stockAlert:true,
+  payMethods:{efectivo:true,tarjeta:true,bizum:true},
+  numMesas:10, mesaPrefix:'Mesa ',
+});
+
+let CATS = loadKey('cats', [
+  {id:'all',label:'Todo'},
+  {id:'bebidas',label:'Bebidas'},{id:'comida',label:'Comida'},
+  {id:'lacteos',label:'Lácteos'},{id:'limpieza',label:'Limpieza'},{id:'otros',label:'Otros'},
+]);
+
+let PRODS = loadKey('prods', [
+  {id:1,name:'Agua 1.5L',price:0.89,cat:'bebidas',badge:''},
+  {id:2,name:'Refresco Cola',price:1.35,cat:'bebidas',badge:'OFERTA'},
+  {id:3,name:'Zumo Naranja',price:1.20,cat:'bebidas',badge:''},
+  {id:4,name:'Cerveza Lata',price:1.10,cat:'bebidas',badge:''},
+  {id:5,name:'Vino Tinto',price:3.50,cat:'bebidas',badge:''},
+  {id:6,name:'Café Solo',price:1.20,cat:'bebidas',badge:''},
+  {id:7,name:'Bocadillo',price:2.50,cat:'comida',badge:''},
+  {id:8,name:'Hamburguesa',price:4.90,cat:'comida',badge:'TOP'},
+  {id:9,name:'Pizza Porción',price:2.80,cat:'comida',badge:''},
+  {id:10,name:'Ensalada',price:3.20,cat:'comida',badge:''},
+  {id:11,name:'Patatas Fritas',price:1.50,cat:'comida',badge:''},
+  {id:12,name:'Leche 1L',price:0.99,cat:'lacteos',badge:''},
+  {id:13,name:'Queso',price:2.30,cat:'lacteos',badge:''},
+  {id:14,name:'Yogur Pack',price:1.65,cat:'lacteos',badge:''},
+  {id:15,name:'Detergente',price:3.99,cat:'limpieza',badge:''},
+  {id:16,name:'Papel WC',price:2.45,cat:'limpieza',badge:'OFERTA'},
+  {id:17,name:'Bolsa',price:0.10,cat:'otros',badge:''},
+  {id:18,name:'Tabaco',price:5.50,cat:'otros',badge:''},
+]);
+
+let USUARIOS = loadKey('usuarios', [
+  {id:'U1',name:'Ana García',  role:'Cajera / Camarera',activo:true, ventas:0,total:0},
+  {id:'U2',name:'Carlos López',role:'Cajero / Camarero',activo:false,ventas:0,total:0},
+]);
+
+let _dirty = false;
+
+// ── Aplicar config al form ──────────────────────────
+function applyToForm(){
+  document.getElementById('cfg-biz-name').value = CFG.bizName;
+  document.getElementById('cfg-biz-type').value = CFG.bizType;
+  document.getElementById('cfg-iva').value       = CFG.iva;
+  document.getElementById('cfg-currency').value  = CFG.currency;
+  document.getElementById('cfg-iva-incl').checked      = CFG.ivaIncluido;
+  document.getElementById('cfg-use-mesas').checked     = CFG.useMesas;
+  document.getElementById('cfg-use-inv').checked       = CFG.useInventario;
+  document.getElementById('cfg-offline').checked       = CFG.offlineMode;
+  document.getElementById('cfg-stock-alert').checked   = CFG.stockAlert;
+  document.getElementById('cfg-pay-efectivo').checked  = CFG.payMethods.efectivo;
+  document.getElementById('cfg-pay-tarjeta').checked   = CFG.payMethods.tarjeta;
+  document.getElementById('cfg-pay-bizum').checked     = CFG.payMethods.bizum;
+  document.getElementById('cfg-num-mesas').value       = CFG.numMesas;
+  document.getElementById('cfg-mesa-prefix').value     = CFG.mesaPrefix;
+}
+
+// ── Leer form → CFG ────────────────────────────────
+function readForm(){
+  CFG.bizName     = document.getElementById('cfg-biz-name').value.trim() || 'SIRIO TPV';
+  CFG.bizType     = document.getElementById('cfg-biz-type').value;
+  CFG.iva         = parseFloat(document.getElementById('cfg-iva').value)||21;
+  CFG.currency    = document.getElementById('cfg-currency').value;
+  CFG.ivaIncluido = document.getElementById('cfg-iva-incl').checked;
+  CFG.useMesas    = document.getElementById('cfg-use-mesas').checked;
+  CFG.useInventario = document.getElementById('cfg-use-inv').checked;
+  CFG.offlineMode = document.getElementById('cfg-offline').checked;
+  CFG.stockAlert  = document.getElementById('cfg-stock-alert').checked;
+  CFG.payMethods.efectivo = document.getElementById('cfg-pay-efectivo').checked;
+  CFG.payMethods.tarjeta  = document.getElementById('cfg-pay-tarjeta').checked;
+  CFG.payMethods.bizum    = document.getElementById('cfg-pay-bizum').checked;
+  CFG.mesaPrefix  = document.getElementById('cfg-mesa-prefix').value||'Mesa ';
+  updateStatusBar();
+}
+
+function liveApply(){
+  readForm();
+  _dirty = true;
+  document.getElementById('sb-saved').textContent = '● Cambios sin guardar';
+  document.getElementById('sb-saved').style.color = 'rgba(251,191,36,.8)';
+  // Regenerar diagrama con debounce
+  document.getElementById('mermaid-editor').value = buildMermaid();
+  document.getElementById('mermaid-editor2').value = document.getElementById('mermaid-editor').value;
+  debouncedRender();
+  renderMesasPreview();
+}
+
+// ── Guardar en localStorage ─────────────────────────
+function saveAll(){
+  readForm();
+  localStorage.setItem('sirio_cfg',      JSON.stringify(CFG));
+  localStorage.setItem('sirio_cats',     JSON.stringify(CATS));
+  localStorage.setItem('sirio_prods',    JSON.stringify(PRODS));
+  localStorage.setItem('sirio_usuarios', JSON.stringify(USUARIOS));
+  _dirty = false;
+  const badge = document.getElementById('saved-badge');
+  badge.classList.add('show');
+  setTimeout(()=>badge.classList.remove('show'), 2500);
+  document.getElementById('sb-saved').textContent = '✓ Guardado';
+  document.getElementById('sb-saved').style.color = 'rgba(74,222,128,.8)';
+  showToast('Configuración guardada — activa en el TPV');
+}
+
+function updateStatusBar(){
+  document.getElementById('sb-name').textContent = CFG.bizName;
+  document.getElementById('sb-info').textContent =
+    `IVA ${CFG.iva}% · ${CFG.numMesas} mesas · ${PRODS.length} productos`;
+}
+
+// ── Tabs ────────────────────────────────────────────
+function goTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>{
+    p.classList.remove('active'); p.style.display='none';
+  });
+  document.getElementById('tab-'+tab)?.classList.add('active');
+  const p = document.getElementById('panel-'+tab);
+  if(p){ p.classList.add('active'); p.style.display=''; }
+  if(tab==='productos'){ renderCfgCats(); renderCfgProds(); }
+  if(tab==='usuarios')  renderCfgUsers();
+  if(tab==='mesas')     renderMesasPreview();
+  if(tab==='diagrama'){
+    document.getElementById('mermaid-editor2').value = document.getElementById('mermaid-editor').value;
+    setTimeout(()=>renderMermaid2(), 200);
+  }
+}
+
+// ── Clock ───────────────────────────────────────────
+function updateClock(){
+  const n = new Date();
+  document.getElementById('clock').textContent =
+    n.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+// ── Toast ────────────────────────────────────────────
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ═══════════════════════════════════════════════════
+//  CATEGORÍAS
+// ═══════════════════════════════════════════════════
+function renderCfgCats(){
+  const editable = CATS.filter(c=>c.id!=='all');
+  document.getElementById('cfg-cats-list').innerHTML = editable.map(c=>`
+    <div class="cfg-item">
+      <span class="cfg-item-name">${c.label}</span>
+      <button class="cfg-del-btn" onclick="delCat('${c.id}')">✕</button>
+    </div>`).join('') || `<div style="color:var(--ink3);font-size:12px;font-family:var(--mono)">Sin categorías</div>`;
+}
+function showCatForm(){ document.getElementById('cfg-cat-form').classList.remove('hidden'); }
+function hideCatForm(){ document.getElementById('cfg-cat-form').classList.add('hidden'); }
+function saveCat(){
+  const name=document.getElementById('cfg-cat-new-name').value.trim(); if(!name) return;
+  CATS.push({id:'cat_'+Date.now(),label:name});
+  document.getElementById('cfg-cat-new-name').value='';
+  hideCatForm(); renderCfgCats(); renderCfgProds(); liveApply();
+  showToast('Categoría añadida: '+name);
+}
+function delCat(id){
+  CATS=CATS.filter(c=>c.id!==id);
+  renderCfgCats(); liveApply();
+}
+
+// ═══════════════════════════════════════════════════
+//  PRODUCTOS
+// ═══════════════════════════════════════════════════
+function renderCfgProds(){
+  document.getElementById('cfg-prod-count').textContent=`(${PRODS.length})`;
+  document.getElementById('cfg-prods-list').innerHTML = PRODS.map(p=>`
+    <div class="cfg-item">
+      <div style="flex:1">
+        <div class="cfg-item-name">${p.name}</div>
+        <div class="cfg-item-meta">${p.price.toFixed(2).replace('.',',')} €</div>
+      </div>
+      <span class="cfg-item-cat">${p.cat}</span>
+      <button class="cfg-del-btn" onclick="delProd(${p.id})">✕</button>
+    </div>`).join('');
+  const sel=document.getElementById('cfg-prod-cat');
+  sel.innerHTML=CATS.filter(c=>c.id!=='all').map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
+  updateStatusBar();
+}
+function showProdForm(){
+  document.getElementById('cfg-prod-form').classList.remove('hidden');
+  renderCfgProds();
+}
+function hideProdForm(){ document.getElementById('cfg-prod-form').classList.add('hidden'); }
+function saveProd(){
+  const name=document.getElementById('cfg-prod-name').value.trim(); if(!name) return;
+  const price=parseFloat(document.getElementById('cfg-prod-price').value)||0;
+  const cat=document.getElementById('cfg-prod-cat').value;
+  const badge=document.getElementById('cfg-prod-badge').value.trim();
+  const id=Math.max(0,...PRODS.map(p=>p.id))+1;
+  PRODS.push({id,name,price,cat,badge});
+  document.getElementById('cfg-prod-name').value='';
+  document.getElementById('cfg-prod-price').value='';
+  document.getElementById('cfg-prod-badge').value='';
+  hideProdForm(); renderCfgProds(); liveApply();
+  showToast('Producto añadido: '+name);
+}
+function delProd(id){
+  PRODS=PRODS.filter(p=>p.id!==id);
+  renderCfgProds(); liveApply();
+}
+
+// ═══════════════════════════════════════════════════
+//  MESAS
+// ═══════════════════════════════════════════════════
+function applyMesasConfig(){
+  const n=parseInt(document.getElementById('cfg-num-mesas').value)||10;
+  CFG.numMesas=Math.max(1,Math.min(50,n));
+  renderMesasPreview(); liveApply();
+  showToast(`Mesas configuradas: ${CFG.numMesas}`);
+}
+function renderMesasPreview(){
+  const n=parseInt(document.getElementById('cfg-num-mesas').value)||CFG.numMesas;
+  const prefix=document.getElementById('cfg-mesa-prefix').value||CFG.mesaPrefix;
+  document.getElementById('mesas-preview').innerHTML =
+    Array.from({length:Math.min(n,20)},(_,i)=>`
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;
+        padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--burdeos);">
+        ${prefix}${i+1}
+      </div>`).join('') + (n>20?`<div style="font-family:var(--mono);font-size:11px;color:var(--ink3);padding:8px">+${n-20} más…</div>`:'');
+}
+
+// ═══════════════════════════════════════════════════
+//  USUARIOS
+// ═══════════════════════════════════════════════════
+function renderCfgUsers(){
+  document.getElementById('cfg-users-list').innerHTML = USUARIOS.map(u=>`
+    <div class="cfg-item">
+      <div style="flex:1">
+        <div class="cfg-item-name">${u.name}</div>
+        <div class="cfg-item-meta">${u.role}</div>
+      </div>
+      <button class="cfg-del-btn" onclick="delCfgUser('${u.id}')">✕</button>
+    </div>`).join('');
+}
+function showUserForm(){ document.getElementById('cfg-user-form').classList.remove('hidden'); }
+function hideUserForm(){ document.getElementById('cfg-user-form').classList.add('hidden'); }
+function saveUser(){
+  const name=document.getElementById('cfg-user-name').value.trim(); if(!name) return;
+  const role=document.getElementById('cfg-user-role').value.trim()||'Operador';
+  USUARIOS.push({id:'U'+Date.now(),name,role,activo:false,ventas:0,total:0});
+  document.getElementById('cfg-user-name').value='';
+  document.getElementById('cfg-user-role').value='';
+  hideUserForm(); renderCfgUsers();
+  showToast('Usuario añadido: '+name);
+}
+function delCfgUser(id){
+  if(USUARIOS.length<=1){showToast('Debe quedar al menos 1 usuario');return;}
+  USUARIOS=USUARIOS.filter(u=>u.id!==id);
+  renderCfgUsers();
+}
+
+// ═══════════════════════════════════════════════════
+//  MERMAID
+// ═══════════════════════════════════════════════════
+function buildMermaid(){
+  const c=CFG;
+  const cats=CATS.filter(x=>x.id!=='all').map(x=>x.label).join(', ')||'Productos';
+  const pm=Object.entries(c.payMethods).filter(([,v])=>v).map(([k])=>k.charAt(0).toUpperCase()+k.slice(1)).join(' / ')||'Efectivo';
+  const ivaStr=`IVA ${c.iva}%`;
+  let lines=['flowchart TD'];
+  lines.push(`  U["👤 ${c.bizType==='restaurante'?'Camarero / Cajero':c.bizType==='tienda'?'Operador':'Usuario'}"]`);
+  lines.push(`  T["🖥️ ${c.bizName}\\nCrear Venta"]`);
+  lines.push(`  U --> T`);
+  lines.push(`  T --> F["📄 Generar Factura"]`);
+  if(c.useMesas){
+    lines.push(`  F --> LF["📋 Crear Líneas de Factura\\nCats: ${cats}"]`);
+  } else {
+    lines.push(`  F --> LF["📋 Añadir Productos\\nCats: ${cats}"]`);
+  }
+  if(c.useInventario){
+    lines.push(`  LF --> MI["📦 Módulo Inventario"]`);
+    lines.push(`  MI --> CS["🔍 Consultar Stock Actual"]`);
+    lines.push(`  CS --> SS{{"¿Stock suficiente?"}}`);
+    if(c.stockAlert){
+      lines.push(`  SS -->|No| ASB["⚠️ Alerta Stock Bajo"]`);
+      lines.push(`  ASB --> DI`);
+    } else {
+      lines.push(`  SS -->|No| DI`);
+    }
+    lines.push(`  SS -->|Sí| DI["➖ Decrementar Inventario"]`);
+    lines.push(`  DI --> RMI[("💾 Registro Movimiento")]`);
+    lines.push(`  RMI --> VF`);
+  } else {
+    lines.push(`  LF --> VF`);
+  }
+  lines.push(`  VF["🔐 Motor VERIFACTu"]`);
+  lines.push(`  VF --> OH["🔗 Hash Anterior"]`);
+  lines.push(`  OH --> GD["📊 Datos Registro\\n${ivaStr}"]`);
+  lines.push(`  GD --> CH["#️⃣ SHA-256 Encadenado"]`);
+  lines.push(`  CH --> GI[("🔒 Guardar Registro")]`);
+  lines.push(`  GI --> PDF["📄 Factura PDF + QR"]`);
+  lines.push(`  PDF --> CD{{"¿Conexión AEAT?"}}`);
+  if(c.offlineMode){
+    lines.push(`  CD -->|No| CEQ[("📤 Cola Offline")]`);
+    lines.push(`  CEQ --> EA["📡 Enviar a AEAT"]`);
+  } else {
+    lines.push(`  CD -->|No| EA`);
+  }
+  lines.push(`  CD -->|Sí| EA["📡 Enviar a AEAT"]`);
+  lines.push(`  EA --> GA[("✅ Respuesta AEAT")]`);
+  lines.push(`  PDF --> PM{{"Método de pago"}}`);
+  const pms=Object.entries(c.payMethods).filter(([,v])=>v);
+  pms.forEach(([k])=>{
+    const label=k.charAt(0).toUpperCase()+k.slice(1);
+    lines.push(`  PM -->|${label}| PAY_${k}["💳 ${label}"]`);
+    lines.push(`  PAY_${k} --> COBRADO["✓ ${c.currency}"]`);
+  });
+  lines.push(`  subgraph BD ["🗄️ Base de Datos"]`);
+  lines.push(`    DB_VF[("Registros_VF")]`);
+  if(c.useInventario) lines.push(`    DB_INV[("Inventario")]`);
+  lines.push(`    DB_FAC[("Facturas")]`);
+  lines.push(`  end`);
+  lines.push(`  GI --> DB_VF`);
+  lines.push(`  GI --> DB_FAC`);
+  if(c.useInventario) lines.push(`  DI --> DB_INV`);
+  lines.push(`  style U fill:#fdf2f4,stroke:#7c1d2e,color:#1c1917`);
+  lines.push(`  style T fill:#7c1d2e,stroke:#7c1d2e,color:#fff`);
+  lines.push(`  style VF fill:#1e1b4b,stroke:#4338ca,color:#fff`);
+  lines.push(`  style BD fill:#f4f1f0,stroke:#ddd8d6`);
+  lines.push(`  style COBRADO fill:#dcfce7,stroke:#166534,color:#166534`);
+  return lines.join('\n');
+}
+
+let _renderTimer;
+function debouncedRender(){ clearTimeout(_renderTimer); _renderTimer=setTimeout(renderMermaid,600); }
+
+async function renderMermaid(){
+  const code=document.getElementById('mermaid-editor').value;
+  await _doRender(code,'mermaid-preview','mermaid-status-badge');
+}
+async function renderMermaid2(){
+  const code=document.getElementById('mermaid-editor2').value;
+  await _doRender(code,'mermaid-preview2','mermaid-status-badge2');
+}
+async function _doRender(code,previewId,badgeId){
+  const preview=document.getElementById(previewId);
+  const badge=document.getElementById(badgeId);
+  if(!preview||!badge) return;
+  try{
+    const id='merm-'+Date.now();
+    const {svg}=await mermaid.render(id,code);
+    preview.innerHTML=svg;
+    badge.textContent='✓ Válido'; badge.className='merm-status ok';
+  }catch(e){
+    preview.innerHTML=`<div class="merm-error">⚠ Error:\n${e.message||e}</div>`;
+    badge.textContent='✗ Error'; badge.className='merm-status err';
+  }
+}
+function syncEditors(src,srcId){
+  const other=srcId==='mermaid-editor'?'mermaid-editor2':'mermaid-editor';
+  document.getElementById(other).value=src.value;
+}
+function resetMermaid(){
+  const code=buildMermaid();
+  document.getElementById('mermaid-editor').value=code;
+  document.getElementById('mermaid-editor2').value=code;
+  renderMermaid(); renderMermaid2();
+}
+function exportMermaid(){
+  const code=document.getElementById('mermaid-editor').value;
+  const blob=new Blob([code],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${CFG.bizName.replace(/[^a-z0-9]/gi,'_')}_flujo.mmd`;
+  a.click();
+  showToast('Diagrama exportado');
+}
+function copyDiagram(){
+  navigator.clipboard.writeText(document.getElementById('mermaid-editor').value);
+  showToast('Código copiado al portapapeles');
+}
+function insertSnippet(type){
+  const snippets={
+    decision:`  D_NEW{{"¿Condición nueva?"}}`,
+    process:`  P_NEW["Nuevo proceso"]`,
+    db:`  DB_NEW[("Nueva BD")]`,
+  };
+  const ed=document.getElementById('mermaid-editor');
+  ed.value+='\n'+snippets[type];
+  ed.focus();
+  debouncedRender();
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+applyToForm();
+renderCfgCats(); renderCfgProds(); renderCfgUsers();
+renderMesasPreview(); updateStatusBar();
+updateClock(); setInterval(updateClock,1000);
+
+document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+document.getElementById('panel-config').style.display='';
+
+const initialDiagram = buildMermaid();
+document.getElementById('mermaid-editor').value  = initialDiagram;
+document.getElementById('mermaid-editor2').value = initialDiagram;
+setTimeout(()=>renderMermaid(),400);
+
+// Avisar al cerrar con cambios sin guardar
+window.addEventListener('beforeunload', e=>{
+  if(_dirty){ e.preventDefault(); e.returnValue=''; }
+});
+</script>
+</body>
+</html>
