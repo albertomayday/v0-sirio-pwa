@@ -1,6 +1,7 @@
 {
   "name": "sirio-pwa",
   "version": "1.0.0",
+  "type": "module",
   "description": "SIRIO - TPV con Sistema VeriFactu",
   "scripts": {
     "dev": "next dev",
