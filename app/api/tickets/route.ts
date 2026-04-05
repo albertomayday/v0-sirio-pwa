@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { ticketCreateSchema, ticketUpdateSchema, validateOrThrow } from '@/lib/validation'
-import { generarHashVeriFactu, obtenerProximoNumero, registrarEventoAuditoria, generarDatosQR } from '@/lib/verifactu'
+import { generarHashVeriFactu, obtenerProximoNumero, registrarEventoAuditoria, generarDatosQR, crearEstructuraVeriFactu } from '@/lib/verifactu'
 
 // ── Rate limiting simple (en producción usar Upstash o similar) ─────────────
 const requestCounts = new Map<string, { count: number; resetTime: number }>()
@@ -129,6 +129,25 @@ export async function POST(request: NextRequest) {
       total: data.total
     })
     
+    // Crear estructura VeriFactu (payload para envío SOAP a AEAT)
+    // PLACEHOLDER: estructura generada y encolada — envío real pendiente de certificado .pfx
+    const estructuraVF = crearEstructuraVeriFactu({
+      ticketId: `${data.serie}-${numero.toString().padStart(8, '0')}`,
+      serie: data.serie,
+      numero,
+      fecha,
+      subtotal: data.subtotal,
+      iva_amount: data.iva_amount,
+      total: data.total,
+      hash,
+      hashAnterior,
+      datosHash,
+    })
+
+    // Encolar para sincronización futura con AEAT
+    // En producción: sustituir por envío SOAP real con certificado .pfx
+    console.info('[VeriFactu] Estructura generada (pendiente envío AEAT):', estructuraVF.RegistroFacturacion?.IDFactura)
+
     // Generar ID único del ticket
     const ticketId = `${data.serie}-${numero.toString().padStart(8, '0')}`
     
