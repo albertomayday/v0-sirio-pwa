@@ -158,3 +158,55 @@ export function generarDatosQR(ticket: {
   
   return `${baseUrl}?${params.toString()}`
 }
+
+// ── Crear estructura para envío SOAP VeriFactu ──────────────────────────────
+export function crearEstructuraVeriFactu(ticket: {
+  ticketId: string
+  serie: string
+  numero: number
+  fecha: string
+  subtotal: number
+  iva_amount: number
+  total: number
+  hash: string
+  hashAnterior: string
+  datosHash: string
+  nifEmisor?: string
+  nombreEmisor?: string
+}): Record<string, unknown> {
+  return {
+    RegistroFacturacion: {
+      IDVersion: '1.0',
+      IDFactura: {
+        IDEmisorFactura: ticket.nifEmisor || 'EMISOR_NIF',
+        NumSerieFactura: ticket.ticketId,
+        FechaExpedicionFacturaFacturado: ticket.fecha.replace(/-/g, ''),
+      },
+      NombreRazonEmisor: ticket.nombreEmisor || 'Negocio Demo',
+      TipoFactura: 'F2',
+      CuotaTotal: ticket.iva_amount.toFixed(2),
+      ImporteTotal: ticket.total.toFixed(2),
+      Encadenamiento: {
+        PrimerRegistro: ticket.hashAnterior === '0'.repeat(64) ? 'S' : 'N',
+        RegistroAnterior: ticket.hashAnterior !== '0'.repeat(64) ? {
+          IDEmisorFactura: ticket.nifEmisor || 'EMISOR_NIF',
+          HuellaRegistroAnterior: ticket.hashAnterior,
+        } : undefined,
+      },
+      SistemaInformatico: {
+        NombreRazon: 'Sirio TPV',
+        NIF: 'SIRIO_NIF',
+        NombreSistemaInformatico: 'SirioTPV',
+        IdSistemaInformatico: 'SIRIO01',
+        Version: '1.0',
+        NumeroInstalacion: ticket.serie,
+        TipoUsoPosibleSoloVerifactu: 'S',
+        TipoUsoPosibleMultiOT: 'N',
+        IndicadorMultiplesOT: 'N',
+      },
+      FechaHoraHusoGenRegistro: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      TipoHuella: '01',
+      Huella: ticket.hash,
+    }
+  }
+}
