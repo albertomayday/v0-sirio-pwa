@@ -537,6 +537,8 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);
 
 <div class="toast" id="toast"></div>
 
+<script src="api-client.js"></script>
+
 <script>
 mermaid.initialize({
   startOnLoad:false, theme:'default',
@@ -641,13 +643,24 @@ function liveApply(){
   renderMesasPreview();
 }
 
-// ── Guardar en localStorage ─────────────────────────
-function saveAll(){
+// ── Guardar en localStorage y servidor ──────────────
+async function saveAll(){
   readForm();
   localStorage.setItem('sirio_cfg',      JSON.stringify(CFG));
   localStorage.setItem('sirio_cats',     JSON.stringify(CATS));
   localStorage.setItem('sirio_prods',    JSON.stringify(PRODS));
   localStorage.setItem('sirio_usuarios', JSON.stringify(USUARIOS));
+  
+  // Enviar cambios al servidor si está disponible
+  if (window.sirioAPI) {
+    try {
+      await window.sirioAPI.updateConfig(CFG);
+      console.log('[v0] Config saved to server');
+    } catch (err) {
+      console.error('[v0] Error saving config to server:', err);
+    }
+  }
+  
   _dirty = false;
   const badge = document.getElementById('saved-badge');
   badge.classList.add('show');

@@ -535,6 +535,9 @@ if('serviceWorker' in navigator)
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 
+<!-- ── API CLIENT ── -->
+<script src="api-client.js"></script>
+
 <script>
 // ═══════════════════════════════════════════════════
 //  SIRIO TPV — Lógica principal
@@ -542,13 +545,26 @@ if('serviceWorker' in navigator)
 // ═══════════════════════════════════════════════════
 
 // ── Cargar configuración ────────────────────────────
-function loadCFG() {
+async function loadCFG() {
+  try {
+    // Intentar obtener del servidor primero
+    if (window.sirioAPI) {
+      const config = await window.sirioAPI.getConfig();
+      if (config && Object.keys(config).length > 0) {
+        localStorage.setItem('sirio_cfg', JSON.stringify(config));
+        return config;
+      }
+    }
+  } catch {}
+  
+  // Fallback a localStorage
   try {
     const saved = localStorage.getItem('sirio_cfg');
     if (saved) return JSON.parse(saved);
   } catch {}
   return null;
 }
+
 function loadDATA(key, def) {
   try {
     const s = localStorage.getItem('sirio_' + key);
@@ -557,26 +573,49 @@ function loadDATA(key, def) {
   return def;
 }
 
-const _cfg = loadCFG();
+// Inicialización asíncrona del TPV
+async function initializeTPV() {
+  // Cargar config del servidor o localStorage
+  const _cfg = await loadCFG();
+  
+  window.CFG = _cfg || {
+    bizName: 'SIRIO · TPV', bizType: 'restaurante',
+    iva: 21, currency: '€', ivaIncluido: true,
+    useMesas: true, useInventario: true, offlineMode: true, stockAlert: true,
+    payMethods: { efectivo: true, tarjeta: true, bizum: true },
+    numMesas: 10, mesaPrefix: 'Mesa ',
+  };
 
-const CFG = _cfg || {
-  bizName: 'SIRIO · TPV', bizType: 'restaurante',
-  iva: 21, currency: '€', ivaIncluido: true,
-  useMesas: true, useInventario: true, offlineMode: true, stockAlert: true,
-  payMethods: { efectivo: true, tarjeta: true, bizum: true },
-  numMesas: 10, mesaPrefix: 'Mesa ',
-};
+  // Cargar datos del servidor o localStorage
+  if (window.sirioAPI) {
+    try {
+      window.CATS = await window.sirioAPI.getCategorias();
+      if (window.CATS.length === 0) {
+        window.CATS = loadDATA('cats', [
+          {id:'all',label:'Todo'},
+          {id:'bebidas',label:'Bebidas'},{id:'comida',label:'Comida'},
+          {id:'lacteos',label:'Lácteos'},{id:'limpieza',label:'Limpieza'},{id:'otros',label:'Otros'},
+        ]);
+      }
+    } catch (e) {
+      window.CATS = loadDATA('cats', [
+        {id:'all',label:'Todo'},
+        {id:'bebidas',label:'Bebidas'},{id:'comida',label:'Comida'},
+        {id:'lacteos',label:'Lácteos'},{id:'limpieza',label:'Limpieza'},{id:'otros',label:'Otros'},
+      ]);
+    }
+  } else {
+    window.CATS = loadDATA('cats', [
+      {id:'all',label:'Todo'},
+      {id:'bebidas',label:'Bebidas'},{id:'comida',label:'Comida'},
+      {id:'lacteos',label:'Lácteos'},{id:'limpieza',label:'Limpieza'},{id:'otros',label:'Otros'},
+    ]);
+  }
 
-let USUARIOS = loadDATA('usuarios', [
-  { id:'U1', name:'Ana García',   role:'Cajera / Camarera', activo:true,  ventas:0, total:0 },
-  { id:'U2', name:'Carlos López', role:'Cajero / Camarero', activo:false, ventas:0, total:0 },
-]);
-
-let CATS = loadDATA('cats', [
-  {id:'all',label:'Todo'},
-  {id:'bebidas',label:'Bebidas'},{id:'comida',label:'Comida'},
-  {id:'lacteos',label:'Lácteos'},{id:'limpieza',label:'Limpieza'},{id:'otros',label:'Otros'},
-]);
+  window.USUARIOS = loadDATA('usuarios', [
+    { id:'U1', name:'Ana García',   role:'Cajera / Camarera', activo:true,  ventas:0, total:0 },
+    { id:'U2', name:'Carlos López', role:'Cajero / Camarero', activo:false, ventas:0, total:0 },
+  ]);
 
 const ICONS = {
   bebidas:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2h8l1 7H7L8 2z"/><path d="M7 9c0 6 2 11 5 11s5-5 5-11"/></svg>`,
@@ -586,46 +625,78 @@ const ICONS = {
   otros:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>`,
 };
 
-let PRODS = loadDATA('prods', [
-  {id:1,name:'Agua 1.5L',price:0.89,cat:'bebidas',badge:''},
-  {id:2,name:'Refresco Cola',price:1.35,cat:'bebidas',badge:'OFERTA'},
-  {id:3,name:'Zumo Naranja',price:1.20,cat:'bebidas',badge:''},
-  {id:4,name:'Cerveza Lata',price:1.10,cat:'bebidas',badge:''},
-  {id:5,name:'Vino Tinto',price:3.50,cat:'bebidas',badge:''},
-  {id:6,name:'Café Solo',price:1.20,cat:'bebidas',badge:''},
-  {id:7,name:'Bocadillo',price:2.50,cat:'comida',badge:''},
-  {id:8,name:'Hamburguesa',price:4.90,cat:'comida',badge:'TOP'},
-  {id:9,name:'Pizza Porción',price:2.80,cat:'comida',badge:''},
-  {id:10,name:'Ensalada',price:3.20,cat:'comida',badge:''},
-  {id:11,name:'Patatas Fritas',price:1.50,cat:'comida',badge:''},
-  {id:12,name:'Leche 1L',price:0.99,cat:'lacteos',badge:''},
-  {id:13,name:'Queso',price:2.30,cat:'lacteos',badge:''},
-  {id:14,name:'Yogur Pack',price:1.65,cat:'lacteos',badge:''},
-  {id:15,name:'Detergente',price:3.99,cat:'limpieza',badge:''},
-  {id:16,name:'Papel WC',price:2.45,cat:'limpieza',badge:'OFERTA'},
-  {id:17,name:'Bolsa',price:0.10,cat:'otros',badge:''},
-  {id:18,name:'Tabaco',price:5.50,cat:'otros',badge:''},
-]);
+  window.PRODS = [];
+  if (window.sirioAPI) {
+    try {
+      window.PRODS = await window.sirioAPI.getProductos();
+      if (window.PRODS.length === 0) {
+        throw new Error('No products from API');
+      }
+    } catch (e) {
+      window.PRODS = loadDATA('prods', [
+        {id:1,name:'Agua 1.5L',price:0.89,cat:'bebidas',badge:''},
+        {id:2,name:'Refresco Cola',price:1.35,cat:'bebidas',badge:'OFERTA'},
+        {id:3,name:'Zumo Naranja',price:1.20,cat:'bebidas',badge:''},
+        {id:4,name:'Cerveza Lata',price:1.10,cat:'bebidas',badge:''},
+        {id:5,name:'Vino Tinto',price:3.50,cat:'bebidas',badge:''},
+        {id:6,name:'Café Solo',price:1.20,cat:'bebidas',badge:''},
+        {id:7,name:'Bocadillo',price:2.50,cat:'comida',badge:''},
+        {id:8,name:'Hamburguesa',price:4.90,cat:'comida',badge:'TOP'},
+        {id:9,name:'Pizza Porción',price:2.80,cat:'comida',badge:''},
+        {id:10,name:'Ensalada',price:3.20,cat:'comida',badge:''},
+        {id:11,name:'Patatas Fritas',price:1.50,cat:'comida',badge:''},
+        {id:12,name:'Leche 1L',price:0.99,cat:'lacteos',badge:''},
+        {id:13,name:'Queso',price:2.30,cat:'lacteos',badge:''},
+        {id:14,name:'Yogur Pack',price:1.65,cat:'lacteos',badge:''},
+        {id:15,name:'Detergente',price:3.99,cat:'limpieza',badge:''},
+        {id:16,name:'Papel WC',price:2.45,cat:'limpieza',badge:'OFERTA'},
+        {id:17,name:'Bolsa',price:0.10,cat:'otros',badge:''},
+        {id:18,name:'Tabaco',price:5.50,cat:'otros',badge:''},
+      ]);
+    }
+  } else {
+    window.PRODS = loadDATA('prods', [
+      {id:1,name:'Agua 1.5L',price:0.89,cat:'bebidas',badge:''},
+      {id:2,name:'Refresco Cola',price:1.35,cat:'bebidas',badge:'OFERTA'},
+      {id:3,name:'Zumo Naranja',price:1.20,cat:'bebidas',badge:''},
+      {id:4,name:'Cerveza Lata',price:1.10,cat:'bebidas',badge:''},
+      {id:5,name:'Vino Tinto',price:3.50,cat:'bebidas',badge:''},
+      {id:6,name:'Café Solo',price:1.20,cat:'bebidas',badge:''},
+      {id:7,name:'Bocadillo',price:2.50,cat:'comida',badge:''},
+      {id:8,name:'Hamburguesa',price:4.90,cat:'comida',badge:'TOP'},
+      {id:9,name:'Pizza Porción',price:2.80,cat:'comida',badge:''},
+      {id:10,name:'Ensalada',price:3.20,cat:'comida',badge:''},
+      {id:11,name:'Patatas Fritas',price:1.50,cat:'comida',badge:''},
+      {id:12,name:'Leche 1L',price:0.99,cat:'lacteos',badge:''},
+      {id:13,name:'Queso',price:2.30,cat:'lacteos',badge:''},
+      {id:14,name:'Yogur Pack',price:1.65,cat:'lacteos',badge:''},
+      {id:15,name:'Detergente',price:3.99,cat:'limpieza',badge:''},
+      {id:16,name:'Papel WC',price:2.45,cat:'limpieza',badge:'OFERTA'},
+      {id:17,name:'Bolsa',price:0.10,cat:'otros',badge:''},
+      {id:18,name:'Tabaco',price:5.50,cat:'otros',badge:''},
+    ]);
+  }
 
-let MESAS = Array.from({length: CFG.numMesas}, (_,i) =>
-  ({ id:i+1, estado:'libre', comanda:[], usuario:null, hora:null })
-);
+  window.MESAS = Array.from({length: window.CFG.numMesas}, (_,i) =>
+    ({ id:i+1, estado:'libre', comanda:[], usuario:null, hora:null })
+  );
 
-const HIST = [];
+  window.HIST = [];
 
-const S = {
-  activeUser: USUARIOS.find(u=>u.activo)?.id || USUARIOS[0]?.id,
-  selectedMesa: null,
-  selectedCobroMesa: null,
-  cmdNumpadVal: '', nmMode: 'qty', selectedCmdItem: null, cmdCat: 'all',
-  payMethod: 'efectivo', lastHash: '0'.repeat(64), ticketN: 0,
-  searchQ: '',
-};
+  window.S = {
+    activeUser: window.USUARIOS.find(u=>u.activo)?.id || window.USUARIOS[0]?.id,
+    selectedMesa: null,
+    selectedCobroMesa: null,
+    cmdNumpadVal: '', nmMode: 'qty', selectedCmdItem: null, cmdCat: 'all',
+    payMethod: 'efectivo', lastHash: '0'.repeat(64), ticketN: 0,
+    searchQ: '',
+  };
 
-// ── Aplicar config ──────────────────────────────────
-document.getElementById('brand-name').textContent = CFG.bizName;
-document.getElementById('iva-label-cmd').textContent = `IVA ${CFG.iva}%`;
-document.getElementById('iva-label-cobros').textContent = `IVA ${CFG.iva}%`;
+  // ── Aplicar config ──────────────────────────────────
+  document.getElementById('brand-name').textContent = window.CFG.bizName;
+  document.getElementById('iva-label-cmd').textContent = `IVA ${window.CFG.iva}%`;
+  document.getElementById('iva-label-cobros').textContent = `IVA ${window.CFG.iva}%`;
+}
 
 // ── Tabs ────────────────────────────────────────────
 function goTab(tab) {
@@ -968,30 +1039,57 @@ function renderPayMethods(){
 }
 
 async function procesarCobro(){
-  const m = MESAS.find(x=>x.id===S.selectedCobroMesa);
+  const m = window.MESAS.find(x=>x.id===window.S.selectedCobroMesa);
   if(!m||m.comanda.length===0) return;
   const total = mesaTot(m);
-  const u     = USUARIOS.find(x=>x.id===S.activeUser);
-  S.ticketN++;
-  const tid   = `TK-${String(S.ticketN).padStart(5,'0')}`;
+  const u     = window.USUARIOS.find(x=>x.id===window.S.activeUser);
+  window.S.ticketN++;
+  const tid   = `TK-${String(window.S.ticketN).padStart(5,'0')}`;
   const hash  = await vfHash({
-    tid, mesa:m.id, total, usuario:S.activeUser,
-    metodo:S.payMethod, items:m.comanda,
-    prev:S.lastHash, ts:new Date().toISOString()
+    tid, mesa:m.id, total, usuario:window.S.activeUser,
+    metodo:window.S.payMethod, items:m.comanda,
+    prev:window.S.lastHash, ts:new Date().toISOString()
   });
-  S.lastHash = hash;
-  HIST.unshift({
+  window.S.lastHash = hash;
+  
+  // Calcular importe neto e impuesto
+  const ivaRate = window.CFG.iva / 100;
+  const importeNeto = window.CFG.ivaIncluido ? total / (1 + ivaRate) : total;
+  const importeImpuesto = total - importeNeto;
+  
+  // Enviar ticket al servidor
+  if (window.sirioAPI) {
+    try {
+      const ticketData = {
+        serie: 'A',
+        items: m.comanda,
+        importe_neto: importeNeto,
+        importe_impuesto: importeImpuesto,
+        importe_total: total,
+        hash_actual: hash,
+        metadata: {
+          tid, mesa: m.id, usuario: window.S.activeUser,
+          metodo: window.S.payMethod, ts: new Date().toISOString()
+        }
+      };
+      await window.sirioAPI.createTicket(ticketData);
+    } catch (err) {
+      console.error('[v0] Error sending ticket to server:', err);
+    }
+  }
+  
+  window.HIST.unshift({
     tid, mesa:m.id,
-    usuario: u ? u.name : S.activeUser,
-    metodo: S.payMethod, total, hash,
+    usuario: u ? u.name : window.S.activeUser,
+    metodo: window.S.payMethod, total, hash,
     ts: new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),
   });
   if(u){ u.ventas++; u.total += total; }
   m.estado = 'libre'; m.comanda = []; m.usuario = null; m.hora = null;
-  S.selectedCobroMesa = null;
+  window.S.selectedCobroMesa = null;
   updateBadges();
   document.getElementById('modal-amount').textContent = fmt(total);
-  document.getElementById('modal-sub').textContent    = `${tid} · ${S.payMethod} · ${CFG.mesaPrefix}${m.id}`;
+  document.getElementById('modal-sub').textContent    = `${tid} · ${window.S.payMethod} · ${window.CFG.mesaPrefix}${m.id}`;
   document.getElementById('modal-hash').textContent   = hash;
   document.getElementById('modal').classList.add('open');
   document.getElementById('cobrar-btn').disabled = true;
@@ -1083,11 +1181,22 @@ function setActiveU(id){
 }
 
 // ── INIT ────────────────────────────────────────────
-document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
-document.getElementById('panel-mesas').style.display='';
-updateClock(); setInterval(updateClock, 1000);
-renderUserChips(); renderMesas(); updateBadges();
-renderPayMethods();
+// Inicializar TPV de forma asíncrona
+initializeTPV().then(() => {
+  document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+  document.getElementById('panel-mesas').style.display='';
+  updateClock(); setInterval(updateClock, 1000);
+  renderUserChips(); renderMesas(); updateBadges();
+  renderPayMethods();
+}).catch(err => {
+  console.error('[v0] Error initializing TPV:', err);
+  // Fallback: continuar con los datos por defecto de localStorage
+  document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+  document.getElementById('panel-mesas').style.display='';
+  updateClock(); setInterval(updateClock, 1000);
+  renderUserChips(); renderMesas(); updateBadges();
+  renderPayMethods();
+});
 </script>
 </body>
 </html>
