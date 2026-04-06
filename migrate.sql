@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS tickets (
+  id SERIAL PRIMARY KEY,
+  total NUMERIC,
+  created_at TIMESTAMP DEFAULT NOW()
+);
